@@ -177,7 +177,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_response(200); self.send_header('Content-Type', content_type)
             self.send_header('Cache-Control', 'private, max-age=3600'); self.send_header('Content-Length', str(len(data)))
             self.end_headers(); self.wfile.write(data)
-        elif path in ('/', '/index.html', '/fonts.css', '/styles.css', '/app.js') or path.startswith('/fonts/'):
+        elif path in ('/', '/index.html', '/favicon.svg', '/fonts.css', '/styles.css', '/app.js') or path.startswith('/fonts/'):
             super().do_GET()
         else:
             self.send_error(404)
