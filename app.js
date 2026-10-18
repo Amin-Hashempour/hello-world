@@ -12,6 +12,10 @@ const $ = id => document.getElementById(id);
 function httpURL(value) {
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) ? url.href : ''; } catch { return ''; }
 }
+function imageURL(value) {
+  if (typeof value === 'string' && /^\/api\/image\/[a-f0-9]{64}$/.test(value)) return value;
+  return httpURL(value);
+}
 function message(text, error = false) {
   const node = document.createElement('div'); node.className = 'notice' + (error ? ' error' : ''); node.textContent = text; $('messages').append(node);
 }
@@ -29,8 +33,8 @@ function render() {
     const link = document.createElement('a'); link.className = 'story-link'; link.href = httpURL(item.url); link.target = '_blank'; link.rel = 'noopener noreferrer';
     const imageWrap = document.createElement('div'); imageWrap.className = 'image-wrap';
     const fallback = () => { imageWrap.replaceChildren(); const mark = document.createElement('span'); mark.textContent = item.source; imageWrap.append(mark); };
-    if (httpURL(item.image)) {
-      const image = document.createElement('img'); image.src = httpURL(item.image); image.alt = item.title; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer'; image.addEventListener('error', fallback, { once: true }); imageWrap.append(image);
+    if (imageURL(item.image)) {
+      const image = document.createElement('img'); image.src = imageURL(item.image); image.alt = item.title; image.loading = 'lazy'; image.addEventListener('error', fallback, { once: true }); imageWrap.append(image);
     } else fallback();
     const title = document.createElement('h2'); title.textContent = item.title;
     const meta = document.createElement('div'); meta.className = 'card-meta';

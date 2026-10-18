@@ -16,6 +16,16 @@ class FeedTests(unittest.TestCase):
     def test_atom(self):
         xml = b'<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>News</title><link href="https://example.org/news"/><updated>2026-10-18T12:00:00Z</updated></entry></feed>'
         self.assertEqual(server.parse_feed(xml, 'https://example.org')[0]['url'], 'https://example.org/news')
+    def test_lazy_image(self):
+        xml = b'<rss><channel><item><title>Lazy</title><link>https://example.org/lazy</link><description>&lt;img data-lazy-src="/lazy.jpg"&gt;</description></item></channel></rss>'
+        self.assertEqual(server.parse_feed(xml, 'https://example.org')[0]['image'], 'https://example.org/lazy.jpg')
+    def test_article_open_graph_image(self):
+        response = unittest.mock.MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b'<meta property="og:image" content="/cover.jpg">'
+        response.headers.get_content_type.return_value = 'text/html'
+        with patch('server.urlopen', return_value=response):
+            self.assertEqual(server.find_article_image('https://example.org/post'), 'https://example.org/cover.jpg')
     def test_invalid_feed_is_failure(self):
         with self.assertRaises(ValueError): server.parse_feed(b'<html/>', 'https://example.org')
     def test_source_failure_is_isolated(self):

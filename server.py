@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Local news reader. Python 3.10+, no third-party dependencies."""
 import concurrent.futures
+import hashlib
 import json
-import re
 import argparse
 import xml.etree.ElementTree as ET
 from html import unescape
@@ -18,18 +18,66 @@ SOURCES = {
     'V': ('ویجیاتو', 'https://vigiato.net', ['/feed/']),
     'G': ('گیمفا', 'https://gamefa.com', ['/feed/']),
 }
+IMAGE_URLS = {}
 
 class Images(HTMLParser):
     def __init__(self):
         super().__init__(); self.image = ''
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
-        if tag == 'img' and not self.image:
-            self.image = attrs.get('data-src') or attrs.get('src', '')
+        if self.image:
+            return
+        if tag == 'meta' and attrs.get('property') in ('og:image', 'og:image:secure_url'):
+            self.image = attrs.get('content', '')
+        elif tag == 'meta' and attrs.get('name') in ('twitter:image', 'twitter:image:src'):
+            self.image = attrs.get('content', '')
+        elif tag == 'link' and attrs.get('rel') == 'image_src':
+            self.image = attrs.get('href', '')
+        elif tag == 'img':
+            self.image = (attrs.get('data-src') or attrs.get('data-lazy-src') or
+                          attrs.get('data-original') or attrs.get('src', ''))
+            if not self.image and attrs.get('srcset'):
+                self.image = attrs['srcset'].split(',')[0].strip().split(' ')[0]
 
 def safe_url(value, base):
     value = urljoin(base, value or '')
     return value if urlsplit(value).scheme in ('http', 'https') else ''
+
+def request_bytes(url, *, accept, referer='', limit=8 * 1024 * 1024, timeout=18):
+    headers = {'User-Agent': 'Mozilla/5.0 (compatible; LocalNewsReader/1.1)', 'Accept': accept}
+    if referer:
+        headers['Referer'] = referer
+    with urlopen(Request(url, headers=headers), timeout=timeout) as response:
+        data = response.read(limit + 1)
+        content_type = response.headers.get_content_type()
+    if len(data) > limit:
+        raise ValueError('Response too large')
+    return data, content_type
+
+def find_article_image(url):
+    try:
+        data, content_type = request_bytes(url, accept='text/html,application/xhtml+xml', limit=2 * 1024 * 1024, timeout=10)
+        if content_type not in ('text/html', 'application/xhtml+xml'):
+            return ''
+        parser = Images()
+        parser.feed(data.decode('utf-8', errors='replace'))
+        return safe_url(parser.image, url)
+    except Exception:
+        return ''
+
+def add_image_proxies(items):
+    missing = [item for item in items if not item['image']]
+    if missing:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, len(missing))) as pool:
+            found = pool.map(find_article_image, (item['url'] for item in missing))
+            for item, image in zip(missing, found):
+                item['image'] = image
+    for item in items:
+        if item['image']:
+            token = hashlib.sha256(item['image'].encode()).hexdigest()
+            IMAGE_URLS[token] = (item['image'], item['url'])
+            item['image'] = '/api/image/' + token
+    return items
 
 def parse_feed(data, base):
     root = ET.fromstring(data)
@@ -79,11 +127,8 @@ def fetch_source(code):
     name, base, paths = SOURCES[code]
     for path in paths:
         try:
-            request = Request(base + path, headers={'User-Agent': 'Mozilla/5.0 (compatible; LocalNewsReader/1.0)', 'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml'})
-            with urlopen(request, timeout=18) as response:
-                data = response.read(8 * 1024 * 1024 + 1)
-            if len(data) > 8 * 1024 * 1024: raise ValueError('Feed too large')
-            return code, {'items': parse_feed(data, base), 'error': None}
+            data, _ = request_bytes(base + path, accept='application/rss+xml, application/atom+xml, application/xml, text/xml')
+            return code, {'items': add_image_proxies(parse_feed(data, base)), 'error': None}
         except Exception:
             continue
     return code, {'items': [], 'error': f'دریافت مطالب {name} ممکن نشد؛ اتصال اینترنت یا دسترسی سایت به RSS را بررسی کنید.'}
@@ -99,6 +144,20 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_response(200); self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', str(len(body)))
             self.end_headers(); self.wfile.write(body)
+        elif path.startswith('/api/image/'):
+            token = path.rsplit('/', 1)[-1]
+            image = IMAGE_URLS.get(token)
+            if not image:
+                self.send_error(404); return
+            try:
+                data, content_type = request_bytes(image[0], accept='image/avif,image/webp,image/*,*/*;q=0.8', referer=image[1], limit=10 * 1024 * 1024, timeout=15)
+                if not content_type.startswith('image/'):
+                    raise ValueError('Not an image')
+            except Exception:
+                self.send_error(502); return
+            self.send_response(200); self.send_header('Content-Type', content_type)
+            self.send_header('Cache-Control', 'private, max-age=3600'); self.send_header('Content-Length', str(len(data)))
+            self.end_headers(); self.wfile.write(data)
         elif path in ('/', '/index.html', '/styles.css', '/app.js'):
             super().do_GET()
         else:
