@@ -44,7 +44,11 @@ def safe_url(value, base):
     return value if urlsplit(value).scheme in ('http', 'https') else ''
 
 def request_bytes(url, *, accept, referer='', limit=8 * 1024 * 1024, timeout=18):
-    headers = {'User-Agent': 'Mozilla/5.0 (compatible; LocalNewsReader/1.1)', 'Accept': accept}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36',
+        'Accept': accept,
+        'Accept-Language': 'fa-IR,fa;q=0.9,en-US;q=0.7,en;q=0.6',
+    }
     if referer:
         headers['Referer'] = referer
     with urlopen(Request(url, headers=headers), timeout=timeout) as response:
@@ -53,6 +57,16 @@ def request_bytes(url, *, accept, referer='', limit=8 * 1024 * 1024, timeout=18)
     if len(data) > limit:
         raise ValueError('Response too large')
     return data, content_type
+
+def image_content_type(data, reported):
+    if reported.startswith('image/'):
+        return reported
+    signatures = ((b'\xff\xd8\xff', 'image/jpeg'), (b'\x89PNG\r\n\x1a\n', 'image/png'),
+                  (b'GIF87a', 'image/gif'), (b'GIF89a', 'image/gif'), (b'RIFF', 'image/webp'))
+    for signature, content_type in signatures:
+        if data.startswith(signature):
+            return content_type
+    return ''
 
 def find_article_image(url):
     try:
@@ -97,7 +111,8 @@ def parse_feed(data, base):
             elif tag in ('pubDate', 'published', 'updated') and not published:
                 published = node.text or ''
             if tag in ('thumbnail', 'content', 'enclosure'):
-                candidate = node.get('url', '')
+                candidate = (node.get('url') or node.get('href') or node.get('src') or
+                             node.get('file') or '')
                 if candidate and (tag != 'enclosure' or node.get('type', '').startswith('image/')):
                     image = image or candidate
             if tag in ('description', 'encoded', 'content') and node.text:
@@ -150,15 +165,19 @@ class Handler(SimpleHTTPRequestHandler):
             if not image:
                 self.send_error(404); return
             try:
-                data, content_type = request_bytes(image[0], accept='image/avif,image/webp,image/*,*/*;q=0.8', referer=image[1], limit=10 * 1024 * 1024, timeout=15)
-                if not content_type.startswith('image/'):
+                try:
+                    data, reported_type = request_bytes(image[0], accept='image/avif,image/webp,image/*,*/*;q=0.8', referer=image[1], limit=10 * 1024 * 1024, timeout=15)
+                except Exception:
+                    data, reported_type = request_bytes(image[0], accept='image/avif,image/webp,image/*,*/*;q=0.8', limit=10 * 1024 * 1024, timeout=15)
+                content_type = image_content_type(data, reported_type)
+                if not content_type:
                     raise ValueError('Not an image')
             except Exception:
                 self.send_error(502); return
             self.send_response(200); self.send_header('Content-Type', content_type)
             self.send_header('Cache-Control', 'private, max-age=3600'); self.send_header('Content-Length', str(len(data)))
             self.end_headers(); self.wfile.write(data)
-        elif path in ('/', '/index.html', '/styles.css', '/app.js'):
+        elif path in ('/', '/index.html', '/fonts.css', '/styles.css', '/app.js') or path.startswith('/fonts/'):
             super().do_GET()
         else:
             self.send_error(404)

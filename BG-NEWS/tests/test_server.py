@@ -34,4 +34,7 @@ class FeedTests(unittest.TestCase):
         self.assertEqual(code, 'V'); self.assertEqual(result['items'], []); self.assertTrue(result['error'])
     def test_unsafe_url(self):
         self.assertEqual(server.safe_url('javascript:alert(1)', 'https://example.org'), '')
+    def test_image_type_sniffing_for_generic_cdn_response(self):
+        self.assertEqual(server.image_content_type(b'\xff\xd8\xffmore', 'application/octet-stream'), 'image/jpeg')
+        self.assertEqual(server.image_content_type(b'not an image', 'application/octet-stream'), '')
 if __name__ == '__main__': unittest.main()

@@ -60,6 +60,13 @@ function render() {
 function mergeSource(current, code, incoming) {
   if (!incoming.length) return 0;
   const previous = current.sources[code];
+  const incomingById = new Map(incoming.map(item => [item.id, item]));
+  // Refresh metadata for saved stories too. This replaces image URLs saved by
+  // older versions with the current local image proxy URL.
+  current.items = current.items.map(item => {
+    const latest = item.source === code ? incomingById.get(item.id) : null;
+    return latest ? { ...item, ...latest, source: code } : item;
+  });
   let fresh;
   if (!previous) fresh = incoming.slice(0, 1);
   else {

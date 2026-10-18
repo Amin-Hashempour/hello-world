@@ -10,6 +10,12 @@ for (const code of ['Z','V','G']) assert.equal(merge(state, code, items('3','2',
 assert.equal(state.items.length, 3);
 for (const code of ['Z','V','G']) assert.equal(merge(state, code, items('5','4','3','2','1')), 2);
 assert.equal(state.items.length, 9);
+const savedZ3 = state.items.find(item => item.source === 'Z' && item.id === '3');
+savedZ3.image = 'https://old.invalid/image.jpg';
+const refreshed = items('5','4','3','2','1');
+refreshed.find(item => item.id === '3').image = '/api/image/' + 'a'.repeat(64);
+assert.equal(merge(state, 'Z', refreshed), 0);
+assert.equal(state.items.find(item => item.source === 'Z' && item.id === '3').image, '/api/image/' + 'a'.repeat(64));
 assert.equal(merge(state, 'Z', items('5','4','3','2','1')), 0);
 assert.equal(merge(state, 'Z', items('5','4','3','older')), 0);
 state = JSON.parse(JSON.stringify(state));
