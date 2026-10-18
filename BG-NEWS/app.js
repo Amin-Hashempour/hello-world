@@ -41,7 +41,8 @@ function render() {
     const source = document.createElement('span'); source.textContent = names[item.source];
     const time = document.createElement('time'); const date = new Date(item.published);
     if (!Number.isNaN(date.getTime())) { time.dateTime = date.toISOString(); time.textContent = new Intl.DateTimeFormat('fa-IR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date); }
-    meta.append(source, time); link.append(imageWrap, title, meta); card.append(letter, link); $('articles').append(card);
+    const storyCopy = document.createElement('div'); storyCopy.className = 'story-copy';
+    meta.append(source, time); storyCopy.append(meta, title); link.append(imageWrap, storyCopy); card.append(letter, link); $('articles').append(card);
   }
   $('total').textContent = state.items.length.toLocaleString('fa-IR');
   $('empty').hidden = selected.length > 0;
