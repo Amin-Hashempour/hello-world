@@ -13,3 +13,25 @@
   .image-wrap{width:160px;height:auto;aspect-ratio:16/9;align-self:flex-end}
   .card h2{font-size:14px;margin-top:10px}
 }
+
+/* Softer charcoal theme */
+:root{--bg:#27282d;--surface:#303137;--muted:#aaa8b1;--border:#45464e}
+body{color:#f3f2f6}
+.filter{color:#b8b6bf}
+.filter:hover{background:#34353b}
+.filter.active{background:#3b3643;border-color:#665477;color:#d7c4ff}
+.filter b{color:#c6c3cc}
+.filter span{background:#51425f}
+.update-time{color:#aaa7b0}
+.card{background:#303137;border-color:#45464e;box-shadow:0 8px 24px #11121620}
+.card:hover{border-color:#806a91;background:#33343a}
+.source-letter{background:#44394f;border-color:#665477;color:#d8c1fb}
+.image-wrap{background:linear-gradient(125deg,#46404f,#36373e);color:#c3acd9}
+.card-meta{color:#aaa5b2}
+.notice{background:#38353e;border-color:#554b60;color:#ddd1e9}
+.notice.error{background:#433338;border-color:#704956;color:#f0cbd8}
+.refresh-wrap>span{background:#34343b;border-color:#4a4651;color:#d0c2df}
+.orbit{border-color:#48454d}
+.orbit-two{border-color:#57505d}
+.empty-symbol{background:linear-gradient(145deg,#4a3f53,#35343b);border-color:#715d82;color:#d0b5ed}
+.empty-caption,footer{color:#96939d}
